@@ -1,9 +1,5 @@
 # RDS-Based Mainframe Offload POC Checklist
 
-## TODO
-
-- [ ] **Replace the custom `consumer.js` app with the [MongoDB Kafka Connector](https://www.mongodb.com/docs/kafka-connector/current/) (sink connector) to write CDC events from Kafka directly into MongoDB.** This removes the need to maintain a bespoke Node.js consumer and gives production-grade features out of the box: dead letter queues, configurable write strategies, idempotent upserts, and Atlas-native support.
-
 This checklist is for a POC where **RDS simulates the source system** and **MongoDB acts as the operational read store / offload target**. It is designed to prove the **offload architecture, document model, sync pattern, and API read performance**, not z/OS-specific CDC behavior.
 
 ## 1. Scope and success criteria
