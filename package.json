@@ -1,0 +1,21 @@
+{
+  "name": "database_offloading",
+  "version": "1.0.0",
+  "description": "RDS MySQL → Kafka (Debezium CDC) → MongoDB offload POC",
+  "type": "module",
+  "scripts": {
+    "api":      "node src/api/server.js",
+    "consumer": "node src/cdc/consumer.js",
+    "seed":     "node src/schema/seeder.js",
+    "load:mongo":    "node src/load/generator.js --mode=mongo    --rps=50 --duration=30",
+    "load:baseline": "node src/load/generator.js --mode=baseline --rps=50 --duration=30",
+    "ping": "node mongodbPing.js"
+  },
+  "dependencies": {
+    "dotenv":    "^17.4.2",
+    "express":   "^4.19.2",
+    "kafkajs":   "^2.2.4",
+    "mongodb":   "^7.2.0",
+    "mysql2":    "^3.9.7"
+  }
+}

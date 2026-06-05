@@ -1,0 +1,23 @@
+{
+  "name": "poc-mysql-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "database.hostname": "mysql",
+    "database.port": "3306",
+    "database.user": "debezium",
+    "database.password": "debezium_pass",
+    "database.server.id": "184054",
+    "topic.prefix": "poc",
+    "database.include.list": "offload_poc",
+    "table.include.list": "offload_poc.customer,offload_poc.customer_address,offload_poc.customer_contact,offload_poc.customer_identification,offload_poc.customer_tax,offload_poc.relationship",
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:29092",
+    "schema.history.internal.kafka.topic": "poc.schema-history",
+    "include.schema.changes": "true",
+    "snapshot.mode": "initial",
+    "transforms": "unwrap",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.add.fields": "op,table,source.ts_ms",
+    "transforms.unwrap.delete.handling.mode": "rewrite",
+    "transforms.unwrap.drop.tombstones": "false"
+  }
+}
