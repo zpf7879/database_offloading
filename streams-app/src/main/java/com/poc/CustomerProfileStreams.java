@@ -128,8 +128,13 @@ public class CustomerProfileStreams {
 
         // ── write to output topic ─────────────────────────────────────────────
         profileTable.toStream()
-            .peek((k, v) -> System.out.println("[DEBUG] PROFILE EMITTED key=" + k
-                + " fields=" + (v != null ? v.fieldNames().toString() : "null")))
+            .peek((k, v) -> {
+                if (v != null) {
+                    java.util.List<String> fields = new java.util.ArrayList<>();
+                    v.fieldNames().forEachRemaining(fields::add);
+                    System.out.println("[DEBUG] PROFILE EMITTED key=" + k + " fields=" + fields);
+                }
+            })
             .to(TOPIC_PROFILE, Produced.with(strSerde, jsonSerde));
 
         return builder.build();
