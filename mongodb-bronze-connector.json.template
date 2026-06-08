@@ -1,0 +1,31 @@
+{
+  "name": "mongodb-bronze-connector",
+  "config": {
+    "connector.class": "com.mongodb.kafka.connect.MongoSinkConnector",
+    "connection.uri": "${MONGODB_URI}",
+    "database": "offload_poc",
+
+    "topics": "poc.offload_poc.customer,poc.offload_poc.customer_address,poc.offload_poc.customer_contact,poc.offload_poc.customer_identification,poc.offload_poc.customer_tax,poc.offload_poc.relationship",
+
+    "topic.override.poc.offload_poc.customer.collection":                "bronze_customer",
+    "topic.override.poc.offload_poc.customer_address.collection":        "bronze_customer_address",
+    "topic.override.poc.offload_poc.customer_contact.collection":        "bronze_customer_contact",
+    "topic.override.poc.offload_poc.customer_identification.collection": "bronze_customer_identification",
+    "topic.override.poc.offload_poc.customer_tax.collection":            "bronze_customer_tax",
+    "topic.override.poc.offload_poc.relationship.collection":            "bronze_relationship",
+
+    "key.converter":                  "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable":   "false",
+    "value.converter":                "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+
+    "document.id.strategy": "com.mongodb.kafka.connect.sink.processor.id.strategy.FullKeyStrategy",
+    "writemodel.strategy":  "com.mongodb.kafka.connect.sink.writemodel.strategy.ReplaceOneDefaultStrategy",
+
+    "errors.tolerance":                                "all",
+    "errors.deadletterqueue.topic.name":               "poc.bronze.dlq",
+    "errors.deadletterqueue.topic.replication.factor": "1",
+    "errors.log.enable":                               "true",
+    "errors.log.include.messages":                     "true"
+  }
+}

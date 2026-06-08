@@ -82,7 +82,16 @@ register_connector "poc-mysql-connector" "$(cat "$PROJECT_DIR/debezium-connector
 # 2. MongoDB Kafka sink connector
 # -------------------------------------------------------------
 echo ""
-echo "Registering MongoDB Kafka sink connector..."
+echo "Registering MongoDB Kafka bronze sink connector (1:1 staging collections)..."
+BRONZE_PAYLOAD=$(sed "s|\${MONGODB_URI}|${MONGODB_URI}|g" \
+  "$PROJECT_DIR/mongodb-bronze-connector.json.template")
+register_connector "mongodb-bronze-connector" "$BRONZE_PAYLOAD"
+
+# -------------------------------------------------------------
+# 3. MongoDB Kafka gold sink connector (merged customer_profile)
+# -------------------------------------------------------------
+echo ""
+echo "Registering MongoDB Kafka gold sink connector (merged customer_profile)..."
 SINK_PAYLOAD=$(sed "s|\${MONGODB_URI}|${MONGODB_URI}|g" \
   "$PROJECT_DIR/mongodb-sink-connector.json.template")
 register_connector "mongodb-sink-connector" "$SINK_PAYLOAD"
@@ -92,12 +101,19 @@ register_connector "mongodb-sink-connector" "$SINK_PAYLOAD"
 # -------------------------------------------------------------
 echo ""
 echo "Connector status:"
-for CONNECTOR in poc-mysql-connector mongodb-sink-connector; do
+for CONNECTOR in poc-mysql-connector mongodb-bronze-connector mongodb-sink-connector; do
   STATUS=$(curl -sf "$CONNECT_URL/connectors/$CONNECTOR/status" | \
     python3 -c "import sys,json; d=json.load(sys.stdin); print(d['connector']['state'])" 2>/dev/null || echo "UNKNOWN")
   echo "  $CONNECTOR → $STATUS"
 done
 
 echo ""
-echo "Done. Both connectors are registered."
-echo "Data will flow: MySQL → Debezium → Kafka → MongoDB Atlas"
+echo "Done. All 3 connectors are registered."
+echo ""
+echo " Bronze layer (1:1 staging):  bronze_customer, bronze_customer_address, ..."
+echo " Gold layer   (merged):        customer_profile"
+echo ""
+echo "Data flow:"
+echo "  MySQL → Debezium → Kafka topics → [bronze connector] → bronze_* collections"
+echo "                                  → [Kafka Streams]    → poc.customer_profile"
+echo "                                                        → [gold connector] → customer_profile"

@@ -10,6 +10,13 @@
 
 The pipeline streams every data change from MySQL into MongoDB Atlas in near real-time using a fully event-driven architecture. No batch jobs. No polling. Changes propagate end-to-end in under a second under normal load.
 
+MongoDB stores data in **two layers**:
+
+| Layer | Collections | Purpose |
+|---|---|---|
+| **Bronze** | `bronze_customer`, `bronze_customer_address`, `bronze_customer_contact`, `bronze_customer_identification`, `bronze_customer_tax`, `bronze_relationship` | 1:1 copy of source tables — raw CDC events, used for audit, reconciliation, and replay |
+| **Gold** | `customer_profile` | Merged document per customer with all related data embedded as arrays — optimised for read offload |
+
 ---
 
 ## Stages
