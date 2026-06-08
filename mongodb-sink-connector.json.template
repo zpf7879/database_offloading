@@ -8,13 +8,14 @@
     "topics": "poc.customer_profile",
     "topic.override.poc.customer_profile.collection": "customer_profile",
 
-    "key.converter":                  "org.apache.kafka.connect.json.JsonConverter",
-    "key.converter.schemas.enable":   "false",
+    "key.converter":                  "org.apache.kafka.connect.storage.StringConverter",
     "value.converter":                "org.apache.kafka.connect.json.JsonConverter",
     "value.converter.schemas.enable": "false",
 
-    "document.id.strategy":   "com.mongodb.kafka.connect.sink.processor.id.strategy.FullKeyStrategy",
-    "writemodel.strategy":    "com.mongodb.kafka.connect.sink.writemodel.strategy.ReplaceOneDefaultStrategy",
+    "document.id.strategy":   "com.mongodb.kafka.connect.sink.processor.id.strategy.PartialValueStrategy",
+    "document.id.strategy.partial.value.projection.list": "customer_id",
+    "document.id.strategy.partial.value.projection.type": "AllowList",
+    "writemodel.strategy":    "com.mongodb.kafka.connect.sink.writemodel.strategy.ReplaceOneBusinessKeyStrategy",
 
     "auto.offset.reset":                               "earliest",
 
