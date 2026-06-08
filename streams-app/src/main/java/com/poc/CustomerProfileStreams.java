@@ -78,7 +78,10 @@ public class CustomerProfileStreams {
         // ── customer (already keyed by customer_id) ──────────────────────────
         KTable<String, JsonNode> customerTable = builder
             .stream(TOPIC_CUSTOMER, consumed)
+            .peek((k, v) -> System.out.println("[DEBUG] CUSTOMER RAW key=" + k
+                + " value=" + (v != null ? v.toString().substring(0, Math.min(120, v.toString().length())) : "null")))
             .selectKey((k, v) -> extractCustomerId(v, "customer_id"))
+            .peek((k, v) -> System.out.println("[DEBUG] CUSTOMER REKEYED key=" + k))
             .toTable(Materialized.with(strSerde, jsonSerde));
 
         // ── child tables: re-key by customer_id, aggregate into maps ─────────
@@ -106,7 +109,10 @@ public class CustomerProfileStreams {
             .leftJoin(relTable,           (prof, rels)     -> merge(prof, "relationships",  rels));
 
         // ── write to output topic ─────────────────────────────────────────────
-        profileTable.toStream().to(TOPIC_PROFILE, Produced.with(strSerde, jsonSerde));
+        profileTable.toStream()
+            .peek((k, v) -> System.out.println("[DEBUG] PROFILE EMITTED key=" + k
+                + " fields=" + (v != null ? v.fieldNames().toString() : "null")))
+            .to(TOPIC_PROFILE, Produced.with(strSerde, jsonSerde));
 
         return builder.build();
     }
