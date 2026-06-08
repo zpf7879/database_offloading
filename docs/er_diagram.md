@@ -1,5 +1,11 @@
 # ER Diagram — Offload POC Source Schema
 
+## Visual Diagram
+
+![ER Diagram](er_diagram.png)
+
+## Mermaid Source
+
 ```mermaid
 erDiagram
     customer {
