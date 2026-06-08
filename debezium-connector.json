@@ -18,6 +18,10 @@
     "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
     "transforms.unwrap.add.fields": "op,table,source.ts_ms",
     "transforms.unwrap.delete.handling.mode": "rewrite",
-    "transforms.unwrap.drop.tombstones": "false"
+    "transforms.unwrap.drop.tombstones": "false",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false"
   }
 }

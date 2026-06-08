@@ -157,24 +157,36 @@ public class CustomerProfileStreams {
 
     /**
      * Merges a child map into the parent profile document as an array.
+     * Unwraps schema+payload envelope from both parent and children if present.
      */
     private static JsonNode merge(JsonNode profile, String arrayField, Map<String, JsonNode> children) {
         if (profile == null) return null;
-        ObjectNode out = profile.deepCopy();
+        // Unwrap parent if schema-wrapped
+        JsonNode base = profile.has("payload") ? profile.get("payload") : profile;
+        ObjectNode out = base.deepCopy();
         ArrayNode arr = MAPPER.createArrayNode();
-        if (children != null) children.values().forEach(arr::add);
+        if (children != null) {
+            for (JsonNode child : children.values()) {
+                // Unwrap child if schema-wrapped
+                arr.add(child.has("payload") ? child.get("payload") : child);
+            }
+        }
         out.set(arrayField, arr);
         return out;
     }
 
     private static String extractCustomerId(JsonNode node, String field) {
         if (node == null) return null;
+        // Unwrap schema+payload envelope if present (schemas.enable=true format)
+        // e.g. { "schema": {...}, "payload": { "customer_id": "..." } }
+        if (node.has("payload")) node = node.get("payload");
         JsonNode val = node.get(field);
         return (val == null || val.isNull()) ? null : val.asText();
     }
 
     private static boolean isDeleted(JsonNode node) {
         if (node == null) return true;
+        if (node.has("payload")) node = node.get("payload");
         JsonNode del = node.get("__deleted");
         return del != null && "true".equalsIgnoreCase(del.asText());
     }
