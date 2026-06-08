@@ -1,7 +1,12 @@
-# Custom Kafka Connect image with both:
-#   - Debezium MySQL connector  (source: MySQL binlog → Kafka)
-#   - MongoDB Kafka connector   (sink:   Kafka → MongoDB Atlas)
-FROM confluentinc/cp-kafka-connect:7.6.0
+# Custom Kafka Connect image:
+#   - debezium/connect:2.6  →  Debezium MySQL connector is already built in
+#   - MongoDB Kafka connector added on top via Maven Central
+FROM debezium/connect:2.6
 
-RUN confluent-hub install --no-prompt debezium/debezium-connector-mysql:2.5.4
-RUN confluent-hub install --no-prompt mongodb/kafka-connector:1.13.0
+USER root
+
+RUN curl -L \
+    "https://repo1.maven.org/maven2/org/mongodb/kafka/mongo-kafka-connect/1.13.0/mongo-kafka-connect-1.13.0-all.jar" \
+    -o /kafka/connect/mongo-kafka-connect-1.13.0-all.jar
+
+USER kafka
