@@ -158,22 +158,34 @@ public class CustomerProfileStreams {
 
     /**
      * Merges a child map into the parent profile document as an array.
-     * Unwraps schema+payload envelope from both parent and children if present.
+     * Unwraps schema+payload envelope and strips Debezium metadata fields (__op, __deleted, etc.)
      */
     private static JsonNode merge(JsonNode profile, String arrayField, Map<String, JsonNode> children) {
         if (profile == null) return null;
-        // Unwrap parent if schema-wrapped
+        // Unwrap parent if schema-wrapped, then strip metadata
         JsonNode base = profile.has("payload") ? profile.get("payload") : profile;
-        ObjectNode out = base.deepCopy();
+        ObjectNode out = stripMetadata(base.deepCopy());
         ArrayNode arr = MAPPER.createArrayNode();
         if (children != null) {
             for (JsonNode child : children.values()) {
-                // Unwrap child if schema-wrapped
-                arr.add(child.has("payload") ? child.get("payload") : child);
+                JsonNode unwrapped = child.has("payload") ? child.get("payload") : child;
+                arr.add(stripMetadata(unwrapped.deepCopy()));
             }
         }
         out.set(arrayField, arr);
         return out;
+    }
+
+    /**
+     * Removes Debezium CDC metadata fields from a document.
+     * These belong in the bronze layer only, not in the gold customer_profile.
+     */
+    private static ObjectNode stripMetadata(ObjectNode node) {
+        node.remove("__deleted");
+        node.remove("__op");
+        node.remove("__table");
+        node.remove("__source_ts_ms");
+        return node;
     }
 
     private static String extractCustomerId(JsonNode node, String field) {
