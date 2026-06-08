@@ -4,6 +4,7 @@
   "description": "RDS MySQL → Kafka (Debezium CDC) → MongoDB offload POC",
   "type": "module",
   "scripts": {
+    "demo":     "node scripts/demo.js",
     "api":      "node src/api/server.js",
     "merger":   "node src/merger/merger.js",
     "consumer": "node src/cdc/consumer.js",
