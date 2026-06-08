@@ -82,7 +82,8 @@ echo "      npm install complete."
 # -------------------------------------------------------------
 # STEP 6: Start Docker stack
 # -------------------------------------------------------------
-echo "[6/7] Starting Docker stack (MySQL + Kafka + Kafka Connect)..."
+echo "[6/7] Starting Docker stack (MySQL + Kafka + Kafka Connect + MongoDB sink)..."
+echo "      NOTE: First run will build the custom Kafka Connect image (~2-3 min)."
 
 # Docker socket may require a new shell session if user was just added to docker group
 if ! docker info > /dev/null 2>&1; then
@@ -115,16 +116,8 @@ done
 echo ""
 echo "      Kafka Connect is ready."
 
-# Register connector (safe to re-run — skips if already registered)
-EXISTING=$(curl -sf "$CONNECT_URL/connectors/poc-mysql-connector" 2>/dev/null || true)
-if [ -n "$EXISTING" ]; then
-  echo "      Connector 'poc-mysql-connector' already registered — skipping."
-else
-  curl -sf -X POST "$CONNECT_URL/connectors" \
-    -H "Content-Type: application/json" \
-    -d @debezium-connector.json
-  echo "      Debezium connector registered."
-fi
+echo "      Registering connectors..."
+bash "$PROJECT_DIR/scripts/register-connectors.sh"
 
 # -------------------------------------------------------------
 # Done
@@ -135,8 +128,8 @@ echo " Week 1 Setup Complete!"
 echo "============================================="
 echo ""
 echo " Next steps:"
-echo "   Start CDC consumer:  npm run consumer"
 echo "   Start read API:      npm run api"
+echo "   (consumer.js no longer needed — MongoDB sink connector handles it)"
 echo "   Seed more data:      npm run seed -- --count=5000"
 echo "   Baseline load test:  npm run load:baseline"
 echo "   MongoDB load test:   npm run load:mongo"

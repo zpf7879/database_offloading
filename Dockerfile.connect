@@ -1,0 +1,7 @@
+# Custom Kafka Connect image with both:
+#   - Debezium MySQL connector  (source: MySQL binlog → Kafka)
+#   - MongoDB Kafka connector   (sink:   Kafka → MongoDB Atlas)
+FROM confluentinc/cp-kafka-connect:7.6.0
+
+RUN confluent-hub install --no-prompt debezium/debezium-connector-mysql:2.5.4
+RUN confluent-hub install --no-prompt mongodb/kafka-connector:1.13.0

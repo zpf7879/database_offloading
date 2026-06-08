@@ -1,0 +1,32 @@
+{
+  "name": "mongodb-sink-connector",
+  "config": {
+    "connector.class": "com.mongodb.kafka.connect.MongoSinkConnector",
+    "connection.uri": "${MONGODB_URI}",
+    "database": "offload_poc",
+
+    "topics": "poc.offload_poc.customer,poc.offload_poc.customer_address,poc.offload_poc.customer_contact,poc.offload_poc.customer_identification,poc.offload_poc.customer_tax,poc.offload_poc.relationship",
+
+    "topic.override.poc.offload_poc.customer.collection":                "customer",
+    "topic.override.poc.offload_poc.customer_address.collection":        "customer_address",
+    "topic.override.poc.offload_poc.customer_contact.collection":        "customer_contact",
+    "topic.override.poc.offload_poc.customer_identification.collection": "customer_identification",
+    "topic.override.poc.offload_poc.customer_tax.collection":            "customer_tax",
+    "topic.override.poc.offload_poc.relationship.collection":            "relationship",
+
+    "key.converter":                  "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable":   "false",
+    "value.converter":                "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+
+    "document.id.strategy":     "com.mongodb.kafka.connect.sink.processor.id.strategy.FullKeyStrategy",
+    "writemodel.strategy":      "com.mongodb.kafka.connect.sink.writemodel.strategy.ReplaceOneDefaultStrategy",
+
+    "errors.tolerance":                                      "all",
+    "errors.deadletterqueue.topic.name":                     "poc.sink.dlq",
+    "errors.deadletterqueue.topic.replication.factor":       "1",
+    "errors.deadletterqueue.context.headers.enable":         "true",
+    "errors.log.enable":                                     "true",
+    "errors.log.include.messages":                           "true"
+  }
+}
