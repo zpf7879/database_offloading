@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "api":      "node src/api/server.js",
+    "merger":   "node src/merger/merger.js",
     "consumer": "node src/cdc/consumer.js",
     "seed":     "node src/schema/seeder.js",
     "load:mongo":    "node src/load/generator.js --mode=mongo    --rps=50 --duration=30",
