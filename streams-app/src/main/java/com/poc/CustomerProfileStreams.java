@@ -202,7 +202,7 @@ public class CustomerProfileStreams {
     private static Properties buildProperties() {
         String brokers = System.getenv().getOrDefault("KAFKA_BROKERS", "localhost:9092");
         Properties p = new Properties();
-        p.put(StreamsConfig.APPLICATION_ID_CONFIG,    "customer-profile-aggregator");
+        p.put(StreamsConfig.APPLICATION_ID_CONFIG,    "customer-profile-aggregator-v2");
         p.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, brokers);
         p.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG,   Serdes.String().getClass());
         p.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, JsonSerde.class);
