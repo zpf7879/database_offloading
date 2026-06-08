@@ -10,6 +10,8 @@ import org.apache.kafka.streams.*;
 import org.apache.kafka.streams.kstream.*;
 import org.apache.kafka.streams.state.KeyValueStore;
 
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 
@@ -47,6 +49,22 @@ public class CustomerProfileStreams {
         Topology topology = buildTopology();
 
         System.out.println("Starting Customer Profile Streams...");
+
+        // Verify Kafka connectivity before starting
+        String brokers = props.getProperty(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG);
+        System.out.println("Bootstrap servers: " + brokers);
+        for (String broker : brokers.split(",")) {
+            String[] parts = broker.trim().split(":");
+            String host = parts[0];
+            int port = Integer.parseInt(parts[1]);
+            try (Socket s = new Socket()) {
+                s.connect(new InetSocketAddress(host, port), 5000);
+                System.out.println("[CONNECTIVITY] OK — reached " + broker);
+            } catch (Exception e) {
+                System.err.println("[CONNECTIVITY] FAILED — cannot reach " + broker + ": " + e.getMessage());
+            }
+        }
+
         System.out.println(topology.describe());
 
         final KafkaStreams streams = new KafkaStreams(topology, props);
