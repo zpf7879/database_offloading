@@ -10,8 +10,6 @@ import org.apache.kafka.streams.*;
 import org.apache.kafka.streams.kstream.*;
 import org.apache.kafka.streams.state.KeyValueStore;
 
-import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 
@@ -49,22 +47,6 @@ public class CustomerProfileStreams {
         Topology topology = buildTopology();
 
         System.out.println("Starting Customer Profile Streams...");
-
-        // Verify Kafka connectivity before starting
-        String brokers = props.getProperty(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG);
-        System.out.println("Bootstrap servers: " + brokers);
-        for (String broker : brokers.split(",")) {
-            String[] parts = broker.trim().split(":");
-            String host = parts[0];
-            int port = Integer.parseInt(parts[1]);
-            try (Socket s = new Socket()) {
-                s.connect(new InetSocketAddress(host, port), 5000);
-                System.out.println("[CONNECTIVITY] OK — reached " + broker);
-            } catch (Exception e) {
-                System.err.println("[CONNECTIVITY] FAILED — cannot reach " + broker + ": " + e.getMessage());
-            }
-        }
-
         System.out.println(topology.describe());
 
         final KafkaStreams streams = new KafkaStreams(topology, props);
@@ -96,10 +78,7 @@ public class CustomerProfileStreams {
         // ── customer (already keyed by customer_id) ──────────────────────────
         KTable<String, JsonNode> customerTable = builder
             .stream(TOPIC_CUSTOMER, consumed)
-            .peek((k, v) -> System.out.println("[DEBUG] CUSTOMER RAW key=" + k
-                + " value=" + (v != null ? v.toString().substring(0, Math.min(120, v.toString().length())) : "null")))
             .selectKey((k, v) -> extractCustomerId(v, "customer_id"))
-            .peek((k, v) -> System.out.println("[DEBUG] CUSTOMER REKEYED key=" + k))
             .toTable(Materialized.with(strSerde, jsonSerde));
 
         // ── child tables: re-key by customer_id, aggregate into maps ─────────
@@ -128,13 +107,6 @@ public class CustomerProfileStreams {
 
         // ── write to output topic ─────────────────────────────────────────────
         profileTable.toStream()
-            .peek((k, v) -> {
-                if (v != null) {
-                    java.util.List<String> fields = new java.util.ArrayList<>();
-                    v.fieldNames().forEachRemaining(fields::add);
-                    System.out.println("[DEBUG] PROFILE EMITTED key=" + k + " fields=" + fields);
-                }
-            })
             .to(TOPIC_PROFILE, Produced.with(strSerde, jsonSerde));
 
         return builder.build();

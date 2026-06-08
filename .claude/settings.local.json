@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(if \\(-not $?\\) { \"Directory is empty or new\" })"
+      "PowerShell(if \\(-not $?\\) { \"Directory is empty or new\" })",
+      "mcp__mongodb-mcp-server__list-collections",
+      "mcp__mongodb-mcp-server__count",
+      "mcp__mongodb-mcp-server__find"
     ]
   }
 }
