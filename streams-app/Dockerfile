@@ -11,6 +11,7 @@ RUN mvn package -DskipTests -q
 
 # ── Stage 2: Minimal runtime ──────────────────────────────────────────────────
 FROM eclipse-temurin:17-jre-alpine
+RUN apk add --no-cache libstdc++ libgcc
 WORKDIR /app
 COPY --from=builder /build/target/customer-profile-streams-1.0.0.jar app.jar
 
