@@ -73,6 +73,17 @@ services:
       timeout: 5s
       retries: 10
 
+  streams-app:
+    build:
+      context: ./streams-app
+      dockerfile: Dockerfile
+    container_name: poc_streams_app
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKERS: kafka:29092
+    restart: on-failure
+
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: poc_kafka_ui
