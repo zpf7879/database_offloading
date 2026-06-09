@@ -9,8 +9,12 @@
     "merger":   "node src/merger/merger.js",
     "consumer": "node src/cdc/consumer.js",
     "seed":     "node src/schema/seeder.js",
-    "load:mongo":    "node src/load/generator.js --mode=mongo    --rps=50 --duration=30",
-    "load:baseline": "node src/load/generator.js --mode=baseline --rps=50 --duration=30",
+    "load:mongo":    "node src/load/generator.js --mode=mongo    --rps=50  --duration=30",
+    "load:baseline": "node src/load/generator.js --mode=baseline --rps=50  --duration=30",
+    "load:galaxy":   "node src/load/generator.js --mode=galaxy   --rps=50  --duration=30",
+    "load:large":    "node src/load/generator.js --mode=mongo    --rps=200 --duration=60 --pool=5000",
+    "seed:large":    "node src/schema/seeder.js --count=5000",
+    "reconcile":     "node src/reconcile/reconcile.js",
     "ping": "node mongodbPing.js"
   },
   "dependencies": {

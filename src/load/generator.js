@@ -14,12 +14,16 @@ const args = Object.fromEntries(
 const MODE     = args.mode     || "mongo";
 const RPS      = parseInt(args.rps      || "50");
 const DURATION = parseInt(args.duration || "30"); // seconds
+const POOL     = parseInt(args.pool     || "10");  // how many distinct customer IDs to sample from
 const BASE_URL = process.env.API_BASE_URL || "http://localhost:3000";
 
-const CUSTOMER_IDS = [
-  "cust-0001","cust-0002","cust-0003","cust-0004","cust-0005",
-  "cust-0006","cust-0007","cust-0008","cust-0009","cust-0010",
-];
+// Build a pool of customer IDs from cust-1001 up to cust-1001+POOL.
+// The seeder generates IDs in this range so any pool size up to the seed
+// count is valid. Falls back to the original 10 fixed IDs for small pools.
+const CUSTOMER_IDS = POOL <= 10
+  ? ["cust-0001","cust-0002","cust-0003","cust-0004","cust-0005",
+     "cust-0006","cust-0007","cust-0008","cust-0009","cust-0010"]
+  : Array.from({ length: POOL }, (_, i) => `cust-${String(1001 + i).padStart(4, "0")}`);
 
 const latencies = [];
 let errors = 0;
@@ -28,7 +32,9 @@ async function fireRequest() {
   const id  = CUSTOMER_IDS[Math.floor(Math.random() * CUSTOMER_IDS.length)];
   const url = MODE === "baseline"
     ? `${BASE_URL}/customer/${id}/baseline`
-    : `${BASE_URL}/customer/${id}`;
+    : MODE === "galaxy"
+      ? `${BASE_URL}/galaxy/customer/${id}`
+      : `${BASE_URL}/customer/${id}`;
   const t0 = Date.now();
   try {
     const res = await fetch(url);

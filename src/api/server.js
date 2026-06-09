@@ -84,6 +84,65 @@ app.get("/customer/:id/baseline", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /galaxy/customer/:id
+// Galaxy consumer path — returns the slim summary shape that Galaxy's
+// formerly-batch inquiry screen requires. Reads from the same MongoDB gold
+// layer but projects only the fields Galaxy needs, demonstrating how a
+// second downstream consumer can read the same offloaded data without
+// touching the source system.
+// ---------------------------------------------------------------------------
+app.get("/galaxy/customer/:id", async (req, res) => {
+  const t0 = Date.now();
+  try {
+    const db  = await getMongoDb();
+    const doc = await db.collection("customer_profile").findOne(
+      { customer_id: req.params.id },
+      {
+        projection: {
+          _id: 0,
+          customer_id: 1,
+          external_ref: 1,
+          first_name: 1,
+          last_name: 1,
+          status: 1,
+          // Primary contact only
+          contacts: { $slice: 1 },
+          // Primary address only
+          addresses: { $slice: 1 },
+          // Active relationships count — Galaxy shows a badge, not full list
+          relationships: 1,
+        },
+      }
+    );
+    if (!doc) return res.status(404).json({ error: "not found" });
+
+    // Shape the response to match what Galaxy's inquiry screen consumes
+    const primaryContact = doc.contacts?.[0] ?? null;
+    const primaryAddress = doc.addresses?.[0] ?? null;
+
+    res.json({
+      source: "mongodb_galaxy",
+      latency_ms: Date.now() - t0,
+      data: {
+        customer_id:        doc.customer_id,
+        external_ref:       doc.external_ref,
+        display_name:       `${doc.first_name} ${doc.last_name}`,
+        status:             doc.status,
+        primary_contact:    primaryContact
+          ? { type: primaryContact.contact_type, value: primaryContact.contact_value }
+          : null,
+        primary_address:    primaryAddress
+          ? { city: primaryAddress.city, state: primaryAddress.state, postcode: primaryAddress.postcode }
+          : null,
+        relationship_count: doc.relationships?.length ?? 0,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // GET /health
 // ---------------------------------------------------------------------------
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
