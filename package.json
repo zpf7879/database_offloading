@@ -16,6 +16,8 @@
     "seed:large":    "node src/schema/seeder.js --count=5000",
     "reconcile":     "node src/reconcile/reconcile.js",
     "initial-sync":  "node scripts/initial-sync.js",
+    "idempotency":   "node scripts/idempotency-test.js",
+    "benchmark":     "bash scripts/benchmark.sh",
     "ping": "node mongodbPing.js"
   },
   "dependencies": {
