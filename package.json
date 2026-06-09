@@ -15,6 +15,7 @@
     "load:large":    "node src/load/generator.js --mode=mongo    --rps=200 --duration=60 --pool=5000",
     "seed:large":    "node src/schema/seeder.js --count=5000",
     "reconcile":     "node src/reconcile/reconcile.js",
+    "initial-sync":  "node scripts/initial-sync.js",
     "ping": "node mongodbPing.js"
   },
   "dependencies": {
