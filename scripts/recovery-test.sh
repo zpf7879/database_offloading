@@ -33,7 +33,7 @@ fail() { echo -e "${RED}✗${RESET} $*"; exit 1; }
 head() { echo -e "\n${BOLD}$(printf '─%.0s' {1..60})${RESET}\n${BOLD} $*${RESET}\n$(printf '─%.0s' {1..60})"; }
 
 MYSQL_EXEC="docker exec poc_mysql mysql -upoc_user -ppoc_pass offload_poc -se"
-TEST_CUSTOMER="cust-1001"
+TEST_CUSTOMER="cust-0001"
 SENTINEL_STATUS="RECOVERY_TEST_$(date +%s)"
 
 # ── 1. Baseline snapshot ──────────────────────────────────────────────────────
@@ -51,9 +51,9 @@ ok "poc_streams_app stopped"
 # ── 3. Apply changes while consumer is down ───────────────────────────────────
 head "STEP 3 — Apply ${CHANGES} MySQL changes while streams-app is down"
 
-# Apply a status rotation across the first N customers in the seed range
-for i in $(seq 1 "$CHANGES"); do
-  CID=$(printf "cust-%04d" $((1000 + i)))
+# Apply a status rotation across the first N base customers (cust-0002 onwards)
+for i in $(seq 2 $((1 + CHANGES))); do
+  CID=$(printf "cust-%04d" $i)
   $MYSQL_EXEC "UPDATE customer SET status='SUSPENDED', updated_at=NOW() WHERE customer_id='${CID}';" 2>/dev/null
 done
 ok "Applied ${CHANGES} UPDATE statements to MySQL"
