@@ -63,10 +63,13 @@ ok "poc_streams_app stopped"
 # ── 3. Apply changes while consumer is down ───────────────────────────────────
 head "STEP 3 — Apply ${CHANGES} MySQL changes while streams-app is down"
 
+printf "  %-12s  %-10s  %-10s\n" "customer_id" "field" "new value"
+printf "  %-12s  %-10s  %-10s\n" "───────────" "─────" "─────────"
 for i in $(seq 2 $((1 + CHANGES))); do
   CID=$(printf "cust-%04d" $i)
   docker exec poc_mysql mysql -upoc_user -ppoc_pass offload_poc \
     -sNe "UPDATE customer SET status='SUSPENDED', updated_at=NOW() WHERE customer_id='${CID}';" 2>/dev/null || true
+  printf "  %-12s  %-10s  %-10s\n" "$CID" "status" "SUSPENDED"
 done
 ok "Applied ${CHANGES} UPDATE statements to MySQL"
 
@@ -97,7 +100,7 @@ while [ $ELAPSED -lt $POLL_TIMEOUT ]; do
   if [ "$MONGO_STATUS" = "$SENTINEL_STATUS" ]; then
     NOW=$(date +%s%3N)
     CATCHUP_MS=$(( NOW - RESTART_AT ))
-    printf "\r  ${GREEN}✓${RESET} Caught up in ${BOLD}${GREEN}${CATCHUP_MS}ms${RESET} after restart\n"
+    printf "\033[2K\r  ${GREEN}✓${RESET} Caught up in ${BOLD}${GREEN}${CATCHUP_MS}ms${RESET} after restart\n"
     CAUGHT_UP=true
     break
   fi
