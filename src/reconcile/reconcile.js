@@ -31,12 +31,11 @@ const Y = (s) => `\x1b[33m${s}\x1b[0m`;
 const B = (s) => `\x1b[1m${s}\x1b[0m`;
 
 async function getMysqlCustomers(pool, limit) {
-  const [rows] = await pool.execute(
+  const [rows] = await pool.query(
     `SELECT customer_id, first_name, last_name, status, updated_at
      FROM customer
      ORDER BY customer_id
-     LIMIT ?`,
-    [limit]
+     LIMIT ${parseInt(limit, 10)}`
   );
   return rows;
 }
