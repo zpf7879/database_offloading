@@ -66,12 +66,19 @@ ok "poc_streams_app stopped"
 # ── 3. Apply N changes while consumer is down ─────────────────────────────────
 head "STEP 3 — Apply ${CHANGES} MySQL changes while streams-app is down"
 
-# Track the customer IDs and expected values for verification in Step 7
+# Fetch real customer IDs from MySQL (excluding the sentinel customer)
+AVAILABLE_IDS=($(mysql_exec "SELECT customer_id FROM customer WHERE customer_id != '${TEST_CUSTOMER}' ORDER BY customer_id LIMIT ${CHANGES};"))
+ACTUAL_CHANGES=${#AVAILABLE_IDS[@]}
+
+if [ $ACTUAL_CHANGES -lt $CHANGES ]; then
+  info "Only ${ACTUAL_CHANGES} customers available (requested ${CHANGES}) — adjusting"
+  CHANGES=$ACTUAL_CHANGES
+fi
+
 CHANGED_IDS=()
 printf "  %-12s  %-10s  %-10s\n" "customer_id" "field" "new value"
 printf "  %-12s  %-10s  %-10s\n" "───────────" "─────" "─────────"
-for i in $(seq 2 $((1 + CHANGES))); do
-  CID=$(printf "cust-%04d" $i)
+for CID in "${AVAILABLE_IDS[@]}"; do
   mysql_exec "UPDATE customer SET status='SUSPENDED', updated_at=NOW() WHERE customer_id='${CID}';" || true
   CHANGED_IDS+=("$CID")
   printf "  %-12s  %-10s  %-10s\n" "$CID" "status" "SUSPENDED"
