@@ -84,6 +84,32 @@ services:
       KAFKA_BROKERS: kafka:29092
     restart: on-failure
 
+  api:
+    image: node:20-alpine
+    container_name: poc_api
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: node src/api/server.js
+    ports:
+      - "3000:3000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Override localhost values with Docker-internal hostnames
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      API_PORT: 3000
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: poc_kafka_ui
