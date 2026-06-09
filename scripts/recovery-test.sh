@@ -5,10 +5,11 @@
 #   1. Record current status of test customer in MySQL
 #   2. Stop the streams-app container
 #   3. Apply N changes to MySQL while streams-app is down
-#   4. Apply a sentinel status flip to the test customer
+#   4. Apply a sentinel status flip to the test customer (last write)
 #   5. Restart streams-app
-#   6. Poll MongoDB until the sentinel change appears, measuring catch-up lag
-#   7. Run reconciliation check to confirm correctness
+#   6. Poll MongoDB until the sentinel change appears (pipeline drained)
+#   7. Verify all N changes individually in MongoDB
+#   8. Run reconciliation check to confirm no drift
 #
 # Usage: bash scripts/recovery-test.sh [--changes=10]
 
@@ -31,14 +32,16 @@ info() { echo -e "\033[0;36mℹ${RESET} $*"; }
 fail() { echo -e "${RED}✗${RESET} $*"; exit 1; }
 head() { echo -e "\n${BOLD}$(printf '─%.0s' {1..60})${RESET}\n${BOLD} $*${RESET}\n$(printf '─%.0s' {1..60})"; }
 
-MYSQL_EXEC="docker exec poc_mysql mysql -upoc_user -ppoc_pass offload_poc -sNe"
 TEST_CUSTOMER="cust-0001"
+
+mysql_exec() {
+  docker exec poc_mysql mysql -upoc_user -ppoc_pass offload_poc -sNe "$1" 2>/dev/null
+}
 
 # ── 1. Baseline snapshot ──────────────────────────────────────────────────────
 head "STEP 1 — Baseline snapshot"
 
-CURRENT_STATUS=$(docker exec poc_mysql mysql -upoc_user -ppoc_pass offload_poc \
-  -sNe "SELECT status FROM customer WHERE customer_id='${TEST_CUSTOMER}';" 2>/dev/null)
+CURRENT_STATUS=$(mysql_exec "SELECT status FROM customer WHERE customer_id='${TEST_CUSTOMER}';")
 
 if [ -z "$CURRENT_STATUS" ]; then
   fail "cust-0001 not found in MySQL. Run: npm run initial-sync"
@@ -60,23 +63,24 @@ head "STEP 2 — Stop streams-app"
 docker stop poc_streams_app
 ok "poc_streams_app stopped"
 
-# ── 3. Apply changes while consumer is down ───────────────────────────────────
+# ── 3. Apply N changes while consumer is down ─────────────────────────────────
 head "STEP 3 — Apply ${CHANGES} MySQL changes while streams-app is down"
 
+# Track the customer IDs and expected values for verification in Step 7
+CHANGED_IDS=()
 printf "  %-12s  %-10s  %-10s\n" "customer_id" "field" "new value"
 printf "  %-12s  %-10s  %-10s\n" "───────────" "─────" "─────────"
 for i in $(seq 2 $((1 + CHANGES))); do
   CID=$(printf "cust-%04d" $i)
-  docker exec poc_mysql mysql -upoc_user -ppoc_pass offload_poc \
-    -sNe "UPDATE customer SET status='SUSPENDED', updated_at=NOW() WHERE customer_id='${CID}';" 2>/dev/null || true
+  mysql_exec "UPDATE customer SET status='SUSPENDED', updated_at=NOW() WHERE customer_id='${CID}';" || true
+  CHANGED_IDS+=("$CID")
   printf "  %-12s  %-10s  %-10s\n" "$CID" "status" "SUSPENDED"
 done
 ok "Applied ${CHANGES} UPDATE statements to MySQL"
 
-# ── 4. Apply sentinel flip ───────────────────────────────────────────────────
-docker exec poc_mysql mysql -upoc_user -ppoc_pass offload_poc \
-  -sNe "UPDATE customer SET status='${SENTINEL_STATUS}', updated_at=NOW() WHERE customer_id='${TEST_CUSTOMER}';" 2>/dev/null
-ok "Flipped ${TEST_CUSTOMER} status: ${CURRENT_STATUS} → ${SENTINEL_STATUS}"
+# ── 4. Apply sentinel flip (must be last write) ───────────────────────────────
+mysql_exec "UPDATE customer SET status='${SENTINEL_STATUS}', updated_at=NOW() WHERE customer_id='${TEST_CUSTOMER}';"
+ok "Flipped ${TEST_CUSTOMER} status: ${CURRENT_STATUS} → ${SENTINEL_STATUS}  (sentinel — last write)"
 info "Changes are in MySQL binlog — streams-app is still down, MongoDB is stale"
 
 # ── 5. Restart streams-app ────────────────────────────────────────────────────
@@ -86,13 +90,13 @@ RESTART_AT=$(date +%s%3N)
 docker start poc_streams_app
 ok "poc_streams_app restarted at T+0ms"
 
-# ── 6. Poll for catch-up ──────────────────────────────────────────────────────
-head "STEP 5 — Polling MongoDB for catch-up"
+# ── 6. Poll for sentinel catch-up ─────────────────────────────────────────────
+head "STEP 5 — Polling MongoDB until sentinel arrives"
 
 ELAPSED=0
 CAUGHT_UP=false
 
-printf "  Waiting for status='${SENTINEL_STATUS}' in MongoDB"
+printf "  Waiting for ${TEST_CUSTOMER}.status='${SENTINEL_STATUS}' in MongoDB"
 while [ $ELAPSED -lt $POLL_TIMEOUT ]; do
   MONGO_STATUS=$(curl -sf "${API_URL}/customer/${TEST_CUSTOMER}" \
     | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['status'])" 2>/dev/null || echo "")
@@ -100,7 +104,7 @@ while [ $ELAPSED -lt $POLL_TIMEOUT ]; do
   if [ "$MONGO_STATUS" = "$SENTINEL_STATUS" ]; then
     NOW=$(date +%s%3N)
     CATCHUP_MS=$(( NOW - RESTART_AT ))
-    printf "\033[2K\r  ${GREEN}✓${RESET} Caught up in ${BOLD}${GREEN}${CATCHUP_MS}ms${RESET} after restart\n"
+    printf "\033[2K\r  ${GREEN}✓${RESET} Sentinel arrived in ${BOLD}${GREEN}${CATCHUP_MS}ms${RESET} after restart\n"
     CAUGHT_UP=true
     break
   fi
@@ -115,8 +119,36 @@ if [ "$CAUGHT_UP" = false ]; then
   fail "Timed out after ${POLL_TIMEOUT}s — streams-app did not catch up"
 fi
 
-# ── 7. Reconciliation check ───────────────────────────────────────────────────
-head "STEP 6 — Reconciliation check"
+# ── 7. Verify all N changes individually ──────────────────────────────────────
+head "STEP 6 — Verify all ${CHANGES} changes in MongoDB"
+
+printf "  %-12s  %-10s  %-12s  %-12s  %s\n" "customer_id" "expected" "mongodb" "match" ""
+printf "  %-12s  %-10s  %-12s  %-12s\n"      "───────────" "────────" "───────" "─────"
+
+VERIFY_PASS=0
+VERIFY_FAIL=0
+
+for CID in "${CHANGED_IDS[@]}"; do
+  MONGO_VAL=$(curl -sf "${API_URL}/customer/${CID}" \
+    | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['status'])" 2>/dev/null || echo "NOT_FOUND")
+
+  if [ "$MONGO_VAL" = "SUSPENDED" ]; then
+    printf "  %-12s  %-10s  %-12s  ${GREEN}%-12s${RESET}\n" "$CID" "SUSPENDED" "$MONGO_VAL" "PASS"
+    VERIFY_PASS=$(( VERIFY_PASS + 1 ))
+  else
+    printf "  %-12s  %-10s  %-12s  ${RED}%-12s${RESET}\n" "$CID" "SUSPENDED" "$MONGO_VAL" "FAIL"
+    VERIFY_FAIL=$(( VERIFY_FAIL + 1 ))
+  fi
+done
+
+echo ""
+ok "${VERIFY_PASS}/${CHANGES} changes verified in MongoDB"
+if [ $VERIFY_FAIL -gt 0 ]; then
+  fail "${VERIFY_FAIL} changes did NOT appear in MongoDB"
+fi
+
+# ── 8. Reconciliation check ───────────────────────────────────────────────────
+head "STEP 7 — Reconciliation check"
 
 node src/reconcile/reconcile.js --limit=50
 RECON_EXIT=$?
@@ -124,12 +156,13 @@ RECON_EXIT=$?
 # ── Summary ───────────────────────────────────────────────────────────────────
 head "RECOVERY TEST RESULT"
 
-if [ $RECON_EXIT -eq 0 ] && [ "$CAUGHT_UP" = true ]; then
+if [ $RECON_EXIT -eq 0 ] && [ "$CAUGHT_UP" = true ] && [ $VERIFY_FAIL -eq 0 ]; then
   ok "PASS — streams-app replayed all ${CHANGES} missed events after restart"
+  ok "PASS — all ${CHANGES} changes verified individually in MongoDB"
   ok "PASS — reconciliation found no drift (sample: 50 customers)"
-  info "Catch-up lag: ${CATCHUP_MS}ms from container start to sentinel appearing in MongoDB"
+  info "Catch-up lag: ${CATCHUP_MS}ms from container start to sentinel arriving in MongoDB"
 else
-  fail "FAIL — see reconciliation output above for details"
+  fail "FAIL — see output above for details"
 fi
 
 echo ""
