@@ -184,7 +184,27 @@ curl http://localhost:3000/customer/cust-0001/baseline
 curl http://localhost:3000/galaxy/customer/cust-0001
 ```
 
-**What it proves:** the offload path answers with one index lookup and one document (server execution ~0 ms), while the baseline join fans out across six tables — 12 rows to assemble `cust-0001`, growing with every extra address, contact, or relationship. Every read served from MongoDB is a join the source system no longer runs. The Galaxy path shows a second consumer reading the same data without touching MySQL.
+**What it proves:** the offload path answers with one index lookup and one document (server execution ~0 ms), while the baseline join fans out across six tables — 12 rows to assemble `cust-0001`, growing with every extra address, contact, or relationship. Every read served from MongoDB is a join the source system no longer runs. The Galaxy path shows a second consumer, with a different response shape, reading the same gold document — adding consumers adds no source load.
+
+**Verify zero source load** — count the SELECTs MySQL executes while each endpoint is called 50 times:
+
+```bash
+sel() { docker exec poc_mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -N -e "SHOW GLOBAL STATUS LIKE \"Com_select\"" 2>/dev/null' | awk '{print $2}'; }
+run() { a=$(sel); for i in $(seq 1 50); do curl -s -o /dev/null "localhost:3000$1"; done; b=$(sel); echo "$1 x50 -> MySQL SELECTs: $((b-a-1))"; }
+run /galaxy/customer/cust-0001
+run /customer/cust-0001
+run /customer/cust-0001/baseline
+```
+
+Expected output (the `-1` excludes the counter query itself):
+
+```
+/galaxy/customer/cust-0001 x50 -> MySQL SELECTs: 0
+/customer/cust-0001 x50 -> MySQL SELECTs: 0
+/customer/cust-0001/baseline x50 -> MySQL SELECTs: 50
+```
+
+Both MongoDB-backed endpoints serve 100 requests while MySQL runs zero queries; the baseline runs one 6-table join per request. (Debezium reads the binlog rather than issuing SELECTs, so it does not affect the count in steady state.)
 
 > **Why single-read latency is not the metric here:** in this POC MySQL runs in local Docker while MongoDB is on Atlas, so a single `curl` mostly measures network round trip (~12–17 ms to Atlas vs ~2 ms to localhost), not database work. The first request after the API starts is also slower (~500 ms) because it opens the Atlas connection. Compare latency only under load (below), or with both databases co-located.
 
