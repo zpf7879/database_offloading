@@ -54,7 +54,6 @@ const NEW_CUSTOMER = {
 };
 
 const UPDATE_CUSTOMER_ID = "cust-0001";
-const UPDATE_NEW_STATUS  = "SUSPENDED";
 
 // ── MySQL helpers ─────────────────────────────────────────────────────────────
 async function getMysql() {
@@ -77,13 +76,15 @@ async function getMongo() {
   return { client, db: client.db(process.env.MONGODB_DB || "offload_poc") };
 }
 
-async function pollUntil(fn, label, timeoutMs = POLL_TIMEOUT_MS) {
+// `since` is when the source change was committed; latency is measured from it,
+// not from when polling starts (polls run sequentially, so later ones start late).
+async function pollUntil(fn, label, since, timeoutMs = POLL_TIMEOUT_MS) {
   const start = Date.now();
   process.stdout.write(`  ⏳ Waiting for ${label}`);
   while (Date.now() - start < timeoutMs) {
     const result = await fn();
     if (result) {
-      const latency = Date.now() - start;
+      const latency = Date.now() - since;
       process.stdout.write(`\r  ${C.green}✓${C.reset} ${label} — appeared in ${C.bold}${C.green}${latency}ms${C.reset}\n`);
       return { result, latency };
     }
@@ -141,16 +142,19 @@ async function main() {
     [UPDATE_CUSTOMER_ID]
   );
   const oldStatus = beforeRows[0]?.status ?? "UNKNOWN";
+  // Toggle so every run is a real change — a fixed target value becomes a
+  // no-op after the first run, and the polls below would pass instantly.
+  const newStatus = oldStatus === "SUSPENDED" ? "ACTIVE" : "SUSPENDED";
 
   info(`Updating customer ${hi(UPDATE_CUSTOMER_ID)} (Alice Nguyen)`);
   sub(`Field  : status`);
   sub(`Before : ${hi(oldStatus)}`);
-  sub(`After  : ${hi(UPDATE_NEW_STATUS)}`);
+  sub(`After  : ${hi(newStatus)}`);
 
   const updatedAt = Date.now();
   await mysqlConn.execute(
     "UPDATE customer SET status = ?, updated_at = NOW() WHERE customer_id = ?",
-    [UPDATE_NEW_STATUS, UPDATE_CUSTOMER_ID]
+    [newStatus, UPDATE_CUSTOMER_ID]
   );
   ok(`UPDATE committed to MySQL at T+0ms`);
 
@@ -159,15 +163,17 @@ async function main() {
 
   const { latency: bronzeInsertLatency } = await pollUntil(
     () => db.collection("bronze_customer").findOne({ customer_id: NEW_CUSTOMER_ID }),
-    `bronze_customer: new record (${NEW_CUSTOMER_ID})`
+    `bronze_customer: new record (${NEW_CUSTOMER_ID})`,
+    insertedAt
   );
 
   const { latency: bronzeUpdateLatency } = await pollUntil(
     () => db.collection("bronze_customer").findOne({
       customer_id: UPDATE_CUSTOMER_ID,
-      status: UPDATE_NEW_STATUS,
+      status: newStatus,
     }),
-    `bronze_customer: updated status → ${UPDATE_NEW_STATUS} (${UPDATE_CUSTOMER_ID})`
+    `bronze_customer: updated status → ${newStatus} (${UPDATE_CUSTOMER_ID})`,
+    updatedAt
   );
 
   // ── POLL GOLD LAYER ─────────────────────────────────────────────────────────
@@ -175,15 +181,17 @@ async function main() {
 
   const { result: newProfile, latency: goldInsertLatency } = await pollUntil(
     () => db.collection("customer_profile").findOne({ customer_id: NEW_CUSTOMER_ID }),
-    `customer_profile: new merged doc (${NEW_CUSTOMER_ID})`
+    `customer_profile: new merged doc (${NEW_CUSTOMER_ID})`,
+    insertedAt
   );
 
   const { result: updatedProfile, latency: goldUpdateLatency } = await pollUntil(
     () => db.collection("customer_profile").findOne({
       customer_id: UPDATE_CUSTOMER_ID,
-      status: UPDATE_NEW_STATUS,
+      status: newStatus,
     }),
-    `customer_profile: updated status → ${UPDATE_NEW_STATUS} (${UPDATE_CUSTOMER_ID})`
+    `customer_profile: updated status → ${newStatus} (${UPDATE_CUSTOMER_ID})`,
+    updatedAt
   );
 
   // ── LATENCY SUMMARY ─────────────────────────────────────────────────────────
@@ -218,7 +226,7 @@ async function main() {
   console.log(`  ${C.bold}3. Gold layer — merged profile (UPDATE)${C.reset}`);
   console.log(`     Collection : ${hi("customer_profile")}`);
   console.log(`     Filter     : ${hi(`{ "customer_id": "${UPDATE_CUSTOMER_ID}" }`)}`);
-  console.log(`     Expect     : ${hi(`status = "${UPDATE_NEW_STATUS}"`)}`);
+  console.log(`     Expect     : ${hi(`status = "${newStatus}"`)}`);
   if (updatedProfile) {
     console.log(`     Confirmed  : status = "${hi(updatedProfile.status)}" ✓`);
   }
