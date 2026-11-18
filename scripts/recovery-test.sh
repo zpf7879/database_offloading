@@ -10,6 +10,15 @@
 #   4. Apply a sentinel status flip to the test customer (last write)
 #   5. Restart streams-app
 #   6. Poll MongoDB until the sentinel change appears (pipeline drained)
+#
+# Why a sentinel: it is written after every other change, on a customer none
+# of them touch, so its arrival in MongoDB unambiguously marks the end of the
+# batch — everything written before it has been processed.
+# Caveat: this relies on in-order processing, which Kafka only guarantees
+# within one partition. It holds today because all changes go to the
+# `customer` table and poc.offload_poc.customer has 1 partition. If that topic
+# gets more partitions, or changes span other tables, the sentinel can arrive
+# before earlier events and Step 6 (single-shot checks) may flake.
 #   7. Verify all changes individually in MongoDB
 #   8. Run reconciliation check to confirm no drift
 #
@@ -131,7 +140,7 @@ ok "Applied ${TOTAL_CHANGES} changes to MySQL"
 
 # ── 4. Sentinel flip (must be the last write) ─────────────────────────────────
 mysql_exec "UPDATE customer SET status='${SENTINEL_STATUS}', updated_at=NOW() WHERE customer_id='${TEST_CUSTOMER}';"
-ok "Sentinel: ${TEST_CUSTOMER} status ${CURRENT_STATUS} → ${SENTINEL_STATUS}  (last write)"
+ok "Sentinel: ${TEST_CUSTOMER} status ${CURRENT_STATUS} → ${SENTINEL_STATUS}  (written after all ${TOTAL_CHANGES} changes, marks end of batch)"
 info "streams-app is still down — all changes are queued in the Kafka binlog"
 
 # ── 5. Restart streams-app ────────────────────────────────────────────────────
