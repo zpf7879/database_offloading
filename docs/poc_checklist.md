@@ -281,7 +281,7 @@ Implement at least one endpoint that simulates the offloaded read path, for exam
 
 ### What to report
 * "same correctness"
-* "faster read latency"
+* "read load removed from the source system"
 * "lower query complexity"
 * "acceptable sync lag"
 * "clear path to offload read traffic"

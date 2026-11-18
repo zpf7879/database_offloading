@@ -87,6 +87,8 @@ New scripts and npm commands for scale testing:
 
 See [`benchmark_results.md`](benchmark_results.md) for full output.
 
+> **Reading these numbers:** MySQL runs in local Docker while MongoDB is on Atlas, so absolute latencies include ~12–17 ms of network round trip on the MongoDB side only. Use the table to show the offload path stays stable under load without the source system doing any work, not as a head-to-head latency race.
+
 | Metric | MongoDB | MySQL baseline | Galaxy |
 |---|---|---|---|
 | p50 latency | _run `npm run benchmark`_ | | |

@@ -169,20 +169,24 @@ npm run demo
 
 ---
 
-### Read path comparison
+### Read endpoints
 
-Two API endpoints return the same customer profile — one from MongoDB (offload path), one from MySQL (baseline join path). Both include latency in the response.
+The API serves the same customer profile two ways — from the MongoDB gold layer (offload path) and from MySQL via a relational join (baseline path). The baseline exists to show the work the source system no longer has to do, not to race the two on latency.
 
 ```bash
-# Offload path — single MongoDB findOne
+# Offload path — single indexed findOne on one pre-merged document
 curl http://localhost:3000/customer/cust-0001
 
-# Baseline path — 5-table relational join
+# Baseline path — 6-table relational join on the source (returns rows_scanned)
 curl http://localhost:3000/customer/cust-0001/baseline
 
 # Galaxy path — slim summary for downstream consumer
 curl http://localhost:3000/galaxy/customer/cust-0001
 ```
+
+**What it proves:** the offload path answers with one index lookup and one document (server execution ~0 ms), while the baseline join fans out across six tables — 12 rows to assemble `cust-0001`, growing with every extra address, contact, or relationship. Every read served from MongoDB is a join the source system no longer runs. The Galaxy path shows a second consumer reading the same data without touching MySQL.
+
+> **Why single-read latency is not the metric here:** in this POC MySQL runs in local Docker while MongoDB is on Atlas, so a single `curl` mostly measures network round trip (~12–17 ms to Atlas vs ~2 ms to localhost), not database work. The first request after the API starts is also slower (~500 ms) because it opens the Atlas connection. Compare latency only under load (below), or with both databases co-located.
 
 ---
 

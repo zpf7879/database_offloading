@@ -30,7 +30,7 @@ MySQL (binlog) → Debezium (source connector) → Kafka topics → MongoDB Kafk
 ### Read API
 - `GET /customer/:id` — reads from MongoDB (offload path)
 - `GET /customer/:id/baseline` — reads from MySQL via multi-table join (baseline path)
-- Both return latency in the response for direct comparison
+- Both return latency in the response; the baseline also returns `rows_scanned` to show join fan-out (latency is not directly comparable — MySQL is local, MongoDB is on Atlas)
 
 ### Load Generator
 - `npm run load:mongo` and `npm run load:baseline`
