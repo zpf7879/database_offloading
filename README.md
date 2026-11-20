@@ -167,6 +167,62 @@ npm run demo
 
 **What it proves:** changes propagate from MySQL to MongoDB in under a second under normal load.
 
+#### Pre-demo checklist
+
+Run these before a live demo. A connector can report `RUNNING` while every write fails, so its status alone does not prove the pipeline works.
+
+**1. MongoDB is reachable from your machine**
+
+```bash
+npm run ping
+# SUCCESS: Pinged your MongoDB Atlas cluster.
+```
+
+**2. All containers are up, including `poc_streams_app`**
+
+```bash
+docker ps --format '{{.Names}}\t{{.Status}}' | grep poc_
+```
+
+If `poc_streams_app` shows `Exited`, start it. Without it, the bronze checks pass but every gold (`customer_profile`) check times out.
+
+```bash
+docker start poc_streams_app
+docker logs --since 1m poc_streams_app 2>&1 | grep -o "to RUNNING"   # wait for this
+```
+
+**3. Kafka Connect can actually write to MongoDB**
+
+```bash
+docker logs --since 15m poc_kafka_connect 2>&1 | grep -cE "Failed looking up SRV|MongoTimeoutException"
+# 0 = healthy
+```
+
+If the count isn't 0, the sink connectors are stuck. This usually follows a temporary DNS failure in WSL/Docker: DNS recovers, but the connectors' MongoDB client doesn't. Restart both sinks:
+
+```bash
+for c in mongodb-bronze-connector mongodb-sink-connector; do
+  curl -s -X POST "localhost:8083/connectors/$c/restart?includeTasks=true"; echo
+done
+```
+
+Re-run the log check after about 30 seconds. If it still fails, test DNS from inside the Connect container's network:
+
+```bash
+docker run --rm --network container:poc_kafka_connect busybox \
+  nslookup -type=SRV _mongodb._tcp.<your-cluster-host>
+```
+
+**4. Do a dry run**
+
+```bash
+npm run demo
+```
+
+All four bronze and gold checks should pass in about 1–2 seconds. If the demo prints `✓ Connected to MongoDB Atlas` but bronze times out, the problem is in step 3, not in your connection string.
+
+> **Note:** with `errors.tolerance=all`, records the sink fails to write go to the `poc.bronze.dlq` topic and are not retried. Changes made while the connectors were stuck won't appear in MongoDB on their own. For the demo, a fresh `npm run demo` creates new changes, so there's nothing to recover. To check existing data, `npm run reconcile` lists missing or stale gold documents. `npm run initial-sync` re-fills the gold layer from MySQL and is safe to re-run, but it doesn't touch the bronze collections.
+
 ---
 
 ### Read endpoints
